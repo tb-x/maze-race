@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maze Race</title>
+<meta name="theme-color" content="#7a3fa0">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Maze Race">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" crossorigin="anonymous"></script>
+<style>
+  /* Layout: maker mode is a settings card above a column of A4 sheet previews; each sheet prints in black and white as one wordless race maze for two kids sitting at the top and bottom edges (each start picture faces its player, with an empty circle to colour in their pen colour, the shared goal in a room in the middle, an answer QR code top right). Answer mode (the QR's #8x11a2r2… link) is the maze on a card, with both ways drawn racing to the middle in red and blue. */
+  :root{
+    --ink:#1f2a44; --plum:#7a3fa0; --cream:#f7f1e3; --cream-dark:#e2d6b8;
+    --go:#2fa34a; --red:#e0533d; --p1:#e0533d; --p2:#2f6fd6;
+    --read:Verdana,Tahoma,sans-serif;
+    --title:'Luckiest Guy','Arial Rounded MT Bold','Trebuchet MS',system-ui,sans-serif;
+    --z:1;
+    color-scheme: light;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0}
+  body{background:var(--plum);color:var(--ink);font-family:var(--read);-webkit-tap-highlight-color:transparent;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  button,input,select{font:inherit;color:inherit;touch-action:manipulation}
+  button{cursor:pointer}
+
+  #home{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));z-index:50;
+    width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#2a2140;background:rgba(255,255,255,.82);
+    box-shadow:0 3px 0 rgba(0,0,0,.18);touch-action:manipulation;-webkit-tap-highlight-color:transparent;text-decoration:none}
+  #home svg{width:24px;height:24px}
+  #home:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18)}
+
+  /* ---------- maker ---------- */
+  main{max-width:860px;margin:0 auto;
+    padding:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px))
+            calc(28px + env(safe-area-inset-bottom,0px)) calc(12px + env(safe-area-inset-left,0px))}
+  header{padding-left:56px;min-height:44px;color:#fff}
+  h1{font-family:var(--title);font-weight:400;font-size:clamp(30px,6vw,42px);letter-spacing:1px;line-height:1.1;margin:0;
+    text-shadow:0 3px 0 rgba(0,0,0,.25)}
+  header p{margin:6px 0 0;font-size:14px;line-height:1.45;opacity:.92}
+  #controls{margin:16px 0 22px;background:var(--cream);border-radius:16px;padding:14px;box-shadow:0 4px 0 rgba(0,0,0,.2);
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px 14px}
+  #controls label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:bold}
+  #controls input,#controls select{height:44px;width:100%;border:2px solid var(--cream-dark);border-radius:10px;background:#fff;
+    padding:0 10px;font-size:16px}
+  .btns{grid-column:1/-1;display:flex;gap:10px}
+  .btns button{flex:1;height:54px;border:0;border-radius:14px;color:#fff;font-family:var(--title);font-size:clamp(18px,5.4vw,24px);letter-spacing:1px;white-space:nowrap;
+    padding-top:4px;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+  .btns button:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+  #new{background:var(--red)}
+  #print{background:var(--go)}
+
+  #pages{display:flex;flex-direction:column;align-items:center;gap:22px}
+  .page{position:relative}
+  .reroll{position:absolute;bottom:8px;left:8px;width:44px;height:44px;border-radius:50%;border:0;background:var(--cream);
+    box-shadow:0 3px 0 rgba(0,0,0,.2);display:grid;place-items:center;padding:0}
+  .reroll svg{width:24px;height:24px}
+
+  /* one printed A4 page; all sizes in mm so the preview is the print. --z shrinks the preview to fit a phone. */
+  .sheet{zoom:var(--z);width:210mm;height:296.5mm;padding:12mm;background:#fff;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+  .sheet svg{display:block}
+  .mz .wall{stroke:var(--ink);fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .mz .route{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.85;
+    animation:draw var(--d,4s) linear .5s forwards}
+  .mz .route.p1{stroke:var(--p1)} .mz .route.p2{stroke:var(--p2)}
+  .mz .pen{fill:#fff;stroke:var(--ink)}
+  .solved .pen.p1{fill:var(--p1)} .solved .pen.p2{fill:var(--p2)}
+  .solved .goal{transform-box:fill-box;transform-origin:50% 50%;animation:hop .45s ease-in-out calc(var(--hop,4s) + .5s) 3}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  @keyframes hop{50%{transform:scale(1.15)}}
+
+  /* ---------- answer ---------- */
+  #answer{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+    padding-top:calc(64px + env(safe-area-inset-top,0px))}
+  .solved{width:min(100%,560px);background:#fff;border-radius:14px;padding:14px;box-shadow:0 6px 0 rgba(0,0,0,.2);
+    display:flex;flex-direction:column;align-items:center;gap:12px}
+  .solved svg{width:100%;height:auto;max-height:calc(100dvh - 150px);display:block;cursor:pointer}
+  #make{color:var(--plum);font-size:14px}
+  body.answering #maker, body:not(.answering) #answer{display:none}
+
+  /* ---------- print: only the sheets, one per page ---------- */
+  @page{size:A4 portrait;margin:0}
+  @media print{
+    body{background:#fff}
+    #home,main>header,#controls,.reroll,#answer{display:none!important}
+    main{padding:0;max-width:none}
+    #pages{display:block}
+    .sheet{zoom:1!important;box-shadow:none}
+    .page:not(:last-child){break-after:page}
+  }
+</style>
+</head>
+<body>
+<a id="home" href="../print.html" aria-label="All printables" title="All printables"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 9.8V20h12V9.8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M10 20v-5.5h4V20" fill="currentColor"/></svg></a>
+
+<main id="maker">
+  <header>
+    <h1>Maze Race</h1>
+    <p>A maze for two. Lay the sheet flat between two kids, one at the top and one at the bottom, each with a different coloured pen (colour your circle to show which is yours). On "go", both race from their own picture to the shared prize in the middle. The two ways never meet and are about the same length. Scan the QR code to watch the race.</p>
+  </header>
+  <form id="controls" onsubmit="return false">
+    <label>Size <select id="size"></select></label>
+    <label>Pictures <select id="theme"></select></label>
+    <label>Pages <input id="sheets" type="number" inputmode="numeric"></label>
+    <div class="btns"><button id="new" type="button">New races</button><button id="print" type="button">Print</button></div>
+  </form>
+  <div id="pages"></div>
+</main>
+
+<main id="answer"><div id="solved" class="solved"></div></main>
+
+<script>
+/* ======== tuning ======== */
+const DEFAULTS = { size: 8, theme: 'mix', sheets: 1 };
+const SIZES = { 6: 'Small', 8: 'Medium', 11: 'Big', 14: 'Huge', 18: 'Giant', 24: 'Mega', 30: 'Monster' };   // squares across → name in the list
+const SHEETS_MAX = 20;
+const MAX_CELL = 26;                 // mm, widest corridor on the sheet
+const PIC_CELLS = 1.7;               // start pictures, in squares…
+const PIC_MIN = 20, PIC_MAX = 30;    // …but never smaller or bigger than this, in mm
+const PEN = 0.45;                    // the circle to colour in a player's pen colour, as a share of the picture size
+const GOAL_MM = 24;                  // the goal room in the middle is at least this wide (2 squares or more)
+const WALL = 0.1;                    // wall thickness, as a share of a square
+const NEWEST = 0.75;                 // 1 = long winding corridors with few dead ends, 0 = lots of short dead ends
+const FAIR = 0.06;                   // the two ways may differ by at most this share of their length (and always 1 square is fine)
+const TRIES = 60;                    // mazes carved per race, keeping the fairest
+const QR_SIZE = 24;                  // mm, smallest answer QR code…
+const QR_MODULE = 0.4;               // …grown for big mazes so each QR dot is at least this many mm, for a phone camera
+const STEP_S = 0.12;                 // answer page: seconds per square for the racing lines (sped up for big mazes)
+const RACE_MAX_S = 9;                // …so the slower line takes at most this long
+const PUBLIC_URL = 'https://tb-x.github.io/maze-race/';   // where the QR points when the maker isn't on GitHub Pages
+
+/* ======== small helpers ======== */
+const $ = (id) => document.getElementById(id);
+const rint = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const range = (n) => Array.from({ length: n }, (_, i) => i);
+const f = (x) => +x.toFixed(2);
+
+/* ======== settings (remembered per browser) ======== */
+const KEY = 'mazerace.settings';
+let settings = { ...DEFAULTS };
+try { Object.assign(settings, JSON.parse(localStorage.getItem(KEY)) || {}); } catch { /* blocked on file:// */ }
+const saveSettings = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* ignore */ } };
+const clamp = (v, a, b, d) => (Number.isFinite(+v) && v !== '' ? Math.min(b, Math.max(a, Math.round(+v))) : d);
+
+/* ======== pictures (the same as Maze Maker's) ======== */
+// Each is drawn in a 100 × 100 box centred on 0,0, as black lines on white, for a black-and-white printer
+// (and so a child can colour them in).
+const INK = '#1f2a44';
+const STROKE = `fill="#fff" stroke="${INK}" stroke-width="5" stroke-linejoin="round"`;
+const LINE = (w) => `fill="none" stroke="${INK}" stroke-width="${w}" stroke-linecap="round"`;
+const starPath = () => range(10).map((i) => {
+  const r = i % 2 ? 19 : 47, a = (i * 36 - 90) * Math.PI / 180;
+  return `${i ? 'L' : 'M'}${f(r * Math.cos(a))} ${f(r * Math.sin(a) + 4)}`;
+}).join('') + 'z';
+const STAR = `<path d="${starPath()}" ${STROKE}/>`;
+const petals = range(5).map((k) => {
+  const a = (k * 72 - 90) * Math.PI / 180;
+  return `<circle cx="${f(24 * Math.cos(a))}" cy="${f(24 * Math.sin(a) + 2)}" r="16" ${STROKE}/>`;
+}).join('');
+
+const MOUSE = `<path d="M-30 22C-50 26-54 6-44-4" ${LINE(5)}/>
+  <path d="M-34 24C-38 0-22-22 2-22 20-22 32-10 44 12 46 18 42 24 36 24z" ${STROKE}/>
+  <circle cx="0" cy="-22" r="13" ${STROKE}/><circle cx="0" cy="-22" r="5.5" ${LINE(3)}/>
+  <circle cx="22" cy="-3" r="4" fill="${INK}"/><circle cx="45" cy="13" r="4.5" fill="${INK}"/>
+  <path d="M36 5l13-8M38 9l15-2" ${LINE(2.5)}/>`;
+const CHEESE = `<path d="M-44-6 26-36 44-6z" ${STROKE}/><path d="M-44-6H44V30H-44z" ${STROKE}/>
+  <circle cx="-22" cy="10" r="7" ${STROKE}/><circle cx="6" cy="19" r="5" ${STROKE}/><circle cx="26" cy="4" r="6" ${STROKE}/>
+  <ellipse cx="8" cy="-17" rx="7" ry="3.5" ${STROKE}/>`;
+const BEE = `<ellipse cx="-8" cy="-24" rx="13" ry="19" transform="rotate(-22 -8 -24)" ${STROKE}/>
+  <ellipse cx="10" cy="-24" rx="12" ry="18" transform="rotate(22 10 -24)" ${STROKE}/>
+  <path d="M-36 3-49 8-36 13z" fill="${INK}"/>
+  <ellipse cx="0" cy="8" rx="38" ry="24" ${STROKE}/>
+  <path d="M-14-14V30M4-15V31" stroke="${INK}" stroke-width="8"/>
+  <circle cx="22" cy="2" r="4" fill="${INK}"/><path d="M21 15q6 4 11-2" ${LINE(3)}/>
+  <path d="M27-12q3-14 14-17" ${LINE(4)}/>`;
+const FLOWER = `<path d="M0 22V48" ${LINE(5)}/><path d="M0 40C-14 30-24 34-26 40-16 46-6 44 0 40z" ${STROKE}/>
+  <g transform="translate(0 -10) scale(.8)">${petals}<circle cy="2" r="13" ${STROKE}/></g>`;
+const ROCKET = `<path d="M-15 12-32 38-14 31z" ${STROKE}/><path d="M15 12 32 38 14 31z" ${STROKE}/>
+  <path d="M-10 33Q0 54 10 33z" ${STROKE}/>
+  <path d="M0-47C19-30 19 6 14 34H-14C-19 6-19-30 0-47z" ${STROKE}/>
+  <circle cy="-10" r="9" ${STROKE}/>`;
+const MOON = `<path d="M22-37.6A40 40 0 1 0 22 37.6 42 42 0 0 1 22-37.6z" ${STROKE}/>
+  <g transform="translate(30 -24) scale(.3)">${STAR}</g><g transform="translate(38 14) scale(.2)">${STAR}</g>`;
+const CAR = `<path d="M-46 18V2L-34-2-20-24H16L30-2 44 2V18z" ${STROKE}/>
+  <path d="M-17-18H-3V-3H-28z" ${STROKE}/><path d="M3-18H13L24-3H3z" ${STROKE}/>
+  <circle cx="-25" cy="20" r="11" ${STROKE}/><circle cx="-25" cy="20" r="3.5" fill="${INK}"/>
+  <circle cx="25" cy="20" r="11" ${STROKE}/><circle cx="25" cy="20" r="3.5" fill="${INK}"/>`;
+const HOUSE = `<rect x="-30" y="-6" width="60" height="44" ${STROKE}/><path d="M-42-2 0-42 42-2z" ${STROKE}/>
+  <rect x="-8" y="14" width="16" height="24" ${STROKE}/><rect x="14" y="2" width="11" height="11" ${STROKE}/>`;
+const BUNNY = `<ellipse cx="-13" cy="-24" rx="10" ry="23" transform="rotate(-10 -13 -24)" ${STROKE}/>
+  <ellipse cx="13" cy="-24" rx="10" ry="23" transform="rotate(10 13 -24)" ${STROKE}/>
+  <ellipse cx="-13" cy="-24" rx="3.5" ry="13" transform="rotate(-10 -13 -24)" ${LINE(3)}/>
+  <ellipse cx="13" cy="-24" rx="3.5" ry="13" transform="rotate(10 13 -24)" ${LINE(3)}/>
+  <circle cy="17" r="28" ${STROKE}/>
+  <circle cx="-10" cy="10" r="4" fill="${INK}"/><circle cx="10" cy="10" r="4" fill="${INK}"/>
+  <path d="M-5 20h10l-5 6z" fill="${INK}"/>
+  <path d="M-9 26H-30M9 26H30M-9 30-28 36M9 30 28 36" ${LINE(2.5)}/>`;
+const CARROT = `<ellipse cx="-9" cy="-34" rx="5" ry="13" transform="rotate(-28 -9 -34)" ${STROKE}/>
+  <ellipse cx="9" cy="-34" rx="5" ry="13" transform="rotate(28 9 -34)" ${STROKE}/>
+  <ellipse cx="0" cy="-37" rx="5" ry="13" ${STROKE}/>
+  <path d="M-18-24Q0-31 18-24L3 45Q0 49-3 45z" ${STROKE}/>
+  <path d="M-11-5h8M5 9h7M-6 25h6" ${LINE(3.5)}/>`;
+
+// two racers → the prize they share; the index is also the t digit in the answer link, so only ever add to the end
+const THEMES = [
+  { name: 'Mice → cheese', from: MOUSE, to: CHEESE },
+  { name: 'Bees → flower', from: BEE, to: FLOWER },
+  { name: 'Rockets → moon', from: ROCKET, to: MOON },
+  { name: 'Cars → house', from: CAR, to: HOUSE },
+  { name: 'Bunnies → carrot', from: BUNNY, to: CARROT },
+];
+const pic = (inner, x, y, s, turn) => `<g transform="translate(${f(x)} ${f(y)})${turn ? ' rotate(180)' : ''} scale(${f(s / 100)})">${inner}</g>`;
+
+/* ======== maze: carve, solve ======== */
+// Squares are numbered row by row; right[i] / down[i] are true where square i has a wall on that side. The goal
+// is an R × R room in the middle. Player 1 starts at the top row in column a, player 2 at the bottom row in
+// column w-1-a (the same place, turned round). Each player gets a maze of their own: two "growing trees" carve
+// at the same time, one from each start, taking turns so they end up about the same size, and never open a wall
+// into the other's squares. So the two ways never touch. Then each tree gets one door into the room, picked so
+// the two ways are as long as each other as possible.
+const openWall = (m, i, j) => { const a = Math.min(i, j), b = Math.max(i, j); if (b - a === 1) m.right[a] = false; else m.down[a] = false; };
+const roomStart = (w, h, R) => [Math.floor((h - R) / 2), Math.floor((w - R) / 2)];
+const starts = (m) => [m.a, (m.h - 1) * m.w + (m.w - 1 - m.a)];
+
+function roomOf(w, h, R) {
+  const [r0, c0] = roomStart(w, h, R);
+  return range(R * R).map((k) => (r0 + Math.floor(k / R)) * w + c0 + k % R);
+}
+function neighbours(w, h, i) {
+  const r = Math.floor(i / w), c = i % w;
+  return [c > 0 && i - 1, c < w - 1 && i + 1, r > 0 && i - w, r < h - 1 && i + w].filter((j) => j !== false);
+}
+
+function carveRace(w, h, R, a) {
+  const n = w * h, m = { w, h, R, a, right: new Array(n).fill(true), down: new Array(n).fill(true) };
+  const owner = new Array(n).fill(-1), room = roomOf(w, h, R);
+  for (const i of room) owner[i] = 2;
+  for (const i of room) for (const j of neighbours(w, h, i)) if (j > i && owner[j] === 2) openWall(m, i, j);
+  const seeds = starts(m), active = [[seeds[0]], [seeds[1]]], size = [1, 1];
+  owner[seeds[0]] = 0; owner[seeds[1]] = 1;
+  while (active[0].length || active[1].length) {
+    let t = size[0] <= size[1] ? 0 : 1;
+    if (!active[t].length) t = 1 - t;
+    const list = active[t], k = Math.random() < NEWEST ? list.length - 1 : rint(0, list.length - 1), i = list[k];
+    const next = neighbours(w, h, i).filter((j) => owner[j] < 0);
+    if (!next.length) { list.splice(k, 1); continue; }
+    const j = next[rint(0, next.length - 1)];
+    openWall(m, i, j);
+    owner[j] = t; size[t]++;
+    list.push(j);
+  }
+  // doors: of every pair of squares next to the room (one from each tree), the one with the closest lengths,
+  // then the longest
+  const roomSet = new Set(room), dist = seeds.map((s) => walk(m, s).dist), best = { score: Infinity };
+  const doors = [0, 1].map((t) => range(n).filter((i) => owner[i] === t)
+    .flatMap((i) => neighbours(w, h, i).filter((j) => roomSet.has(j)).map((j) => [i, j])));
+  for (const [i0, j0] of doors[0]) for (const [i1, j1] of doors[1]) {
+    const d0 = dist[0][i0], d1 = dist[1][i1], score = Math.abs(d0 - d1) * 4 - Math.min(d0, d1);
+    if (score < best.score) Object.assign(best, { score, d: [[i0, j0], [i1, j1]], len: [d0 + 2, d1 + 2] });   // squares on each way, start to room
+  }
+  if (!best.d) return null;
+  for (const [i, j] of best.d) openWall(m, i, j);
+  m.len = best.len;
+  return m;
+}
+
+// squares you can step to from square i
+function exits(m, i) {
+  const { w, h } = m, r = Math.floor(i / w), c = i % w, out = [];
+  if (c < w - 1 && !m.right[i]) out.push(i + 1);
+  if (c > 0 && !m.right[i - 1]) out.push(i - 1);
+  if (r < h - 1 && !m.down[i]) out.push(i + w);
+  if (r > 0 && !m.down[i - w]) out.push(i - w);
+  return out;
+}
+
+// steps from square `from` to every square, and the square each was reached from
+function walk(m, from) {
+  const dist = new Array(m.w * m.h).fill(-1), prev = dist.slice(), queue = [from];
+  dist[from] = 0;
+  for (let q = 0; q < queue.length; q++) for (const j of exits(m, queue[q])) {
+    if (dist[j] >= 0) continue;
+    dist[j] = dist[queue[q]] + 1; prev[j] = queue[q]; queue.push(j);
+  }
+  return { dist, prev };
+}
+
+// each player's way from their start to the first square of the room, as a list of squares (null if there's none)
+function solve(m) {
+  const room = roomOf(m.w, m.h, m.R);
+  return starts(m).map((s) => {
+    const { dist, prev } = walk(m, s), reached = room.filter((i) => dist[i] >= 0);
+    if (!reached.length) return null;
+    const path = [reached.reduce((x, y) => (dist[y] < dist[x] ? y : x))];
+    while (path[0] !== s) path.unshift(prev[path[0]]);
+    return path;
+  });
+}
+const isFair = (len) => Math.abs(len[0] - len[1]) <= Math.max(1, FAIR * Math.max(...len));
+
+// a race for a layout: carve several, keep the fairest (then longest)
+function makeRace(lay, theme) {
+  const { cols: w, rows: h } = lay, R = roomSize(lay);
+  const ok = range(w).filter((c) => picX(lay, c) + lay.P / 2 + 3 <= w * lay.c - lay.Q);
+  let best = null;
+  for (let k = 0; k < TRIES; k++) {
+    const a = ok.length ? ok[rint(0, Math.max(0, Math.ceil(ok.length * 0.7) - 1))] : 0, m = carveRace(w, h, R, a);
+    if (!m) continue;
+    const score = Math.abs(m.len[0] - m.len[1]) * 4 - Math.min(...m.len);
+    if (!best || score < best.score) best = { m, score };
+    if (k >= 8 && isFair(best.m.len)) break;
+  }
+  best.m.theme = theme;
+  return best.m;
+}
+
+/* ======== answer link and QR code ======== */
+// #8x11a2r2t0.<walls> : size, player 1's start column, room size, pictures, then every inner wall as a bit (right
+// walls row by row, then bottom walls), 13 bits to each 4 digits. Digits go into the QR code in its numeric mode,
+// which packs them almost bit for bit, so a big maze still makes a QR code a phone can read.
+const GROUP = 13;
+function wallBits(m) {
+  const { w, h } = m, bits = [];
+  for (let r = 0; r < h; r++) for (let c = 0; c < w - 1; c++) bits.push(m.right[r * w + c]);
+  for (let r = 0; r < h - 1; r++) for (let c = 0; c < w; c++) bits.push(m.down[r * w + c]);
+  return bits;
+}
+function answerHash(m) {
+  const bits = wallBits(m);
+  let s = '';
+  for (let k = 0; k < bits.length; k += GROUP) s += String(range(GROUP).reduce((v, t) => v * 2 + (bits[k + t] ? 1 : 0), 0)).padStart(4, '0');
+  return `#${m.w}x${m.h}a${m.a}r${m.R}t${m.theme}.${s}`;
+}
+const answerBase = () => (location.hostname.endsWith('github.io') ? location.origin + location.pathname : PUBLIC_URL);
+
+function parseHash() {
+  const p = /^#(\d+)x(\d+)a(\d+)r(\d+)t(\d+)\.((?:\d{4})+)$/.exec(location.hash);
+  if (!p) return null;
+  const [w, h, a, R, theme] = p.slice(1, 6).map(Number);
+  if (w < 4 || h < 4 || w > 60 || h > 90 || a >= w || R < 1 || R > w - 2 || R > h - 2 || !THEMES[theme]) return null;
+  const bits = p[6].match(/\d{4}/g).flatMap((g) => range(GROUP).map((t) => !!(+g >> (GROUP - 1 - t) & 1)));
+  const m = { w, h, a, R, theme, right: new Array(w * h).fill(true), down: new Array(w * h).fill(true) };
+  let k = 0;
+  for (let r = 0; r < h; r++) for (let c = 0; c < w - 1; c++) m.right[r * w + c] = bits[k++];
+  for (let r = 0; r < h - 1; r++) for (let c = 0; c < w; c++) m.down[r * w + c] = bits[k++];
+  if (k > bits.length || solve(m).includes(null)) return null;
+  return m;
+}
+
+// the QR code for an answer link: the address and the maze's size as text, the walls' digits as numbers
+function qrFor(hash) {
+  const q = qrcode(0, 'M'), cut = hash.indexOf('.') + 1;
+  q.addData(answerBase() + hash.slice(0, cut));
+  q.addData(hash.slice(cut), 'Numeric');
+  q.make();
+  return q;
+}
+// how many mm a w × h maze's QR code needs (made for a maze of that size with every wall up)
+const qrNeedCache = {};
+function qrNeed(w, h) {
+  if (typeof qrcode !== 'function') return 0;
+  const key = `${w}x${h}`, m = { w, h, a: 0, R: 2, theme: 0, right: new Array(w * h).fill(true), down: new Array(w * h).fill(true) };
+  return (qrNeedCache[key] ??= (qrFor(answerHash(m)).getModuleCount() + 2) * QR_MODULE);
+}
+
+// the QR code as SVG, s mm square at x, y; on screen it's also a link to the answer
+function qrSvg(hash, x, y, s) {
+  if (typeof qrcode !== 'function') return '';   // library didn't load
+  const q = qrFor(hash);
+  const n = q.getModuleCount(), pad = 1, t = n + 2 * pad;
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + pad} ${r + pad}h1v1h-1z`;
+  return `<a href="${hash}" target="_blank"><g transform="translate(${f(x)} ${f(y)}) scale(${f(s / t)})">
+    <rect width="${t}" height="${t}" fill="#fff"/><path d="${d}" fill="#000" shape-rendering="crispEdges"/></g></a>`;
+}
+
+/* ======== drawing one race ======== */
+const BAND_GAP = 2;   // mm between a picture and the maze
+
+// square size, picture size and how many rows fit cols squares across into w × h mm, with Q mm for the QR code
+function fitLayout(cols, w, h, Q) {
+  const c = Math.min(MAX_CELL, w / cols), P = Math.min(PIC_MAX, Math.max(PIC_MIN, c * PIC_CELLS));
+  const T = Math.max(P, Q), B = P;
+  const rows = Math.max(4, Math.floor((h - T - B - 2 * BAND_GAP) / c));
+  return { c, P, Q, T, B, cols, rows };
+}
+const roomSize = (lay) => Math.min(lay.cols - 2, Math.max(2, Math.ceil(GOAL_MM / lay.c)));
+// the top picture's centre, above column col, kept inside the maze's width with room on its left for the pen circle
+const penGap = (lay) => lay.P * PEN + 2;
+const picX = (lay, col) => Math.min(lay.cols * lay.c - lay.P / 2, Math.max(lay.P / 2 + penGap(lay), (col + 0.5) * lay.c));
+
+// returns an <svg> sized in mm. opts: qr (answer QR code), answer (both ways drawn racing in red and blue)
+function raceSvg(m, lay, opts) {
+  const { w, h, R } = m, { c, P } = lay, Q = opts.qr ? lay.Q : 0, T = Math.max(P, Q);
+  const W = w * c, top = T + BAND_GAP, bottom = top + h * c, H = bottom + BAND_GAP + P, th = Math.max(0.6, Math.min(2.4, c * WALL));
+  const theme = THEMES[m.theme], b = w - 1 - m.a, K = P * PEN;
+  let s = `<svg class="mz" width="${f(W)}mm" height="${f(H)}mm" viewBox="${f(-th)} ${f(-th)} ${f(W + 2 * th)} ${f(H + 2 * th)}" aria-hidden="true">`;
+
+  // player 1 at the top, turned to face them, with their pen circle; player 2 the same at the bottom
+  const x1 = picX(lay, m.a), x2 = W - x1, y1 = T - P / 2, y2 = bottom + BAND_GAP + P / 2;
+  s += pic(theme.from, x1, y1, P, true) + `<circle class="pen p1" cx="${f(x1 - P / 2 - 2 - K / 2)}" cy="${f(y1)}" r="${f(K / 2)}" stroke-width="${f(Math.max(0.5, P * 0.025))}"/>`;
+  s += pic(theme.from, x2, y2, P, false) + `<circle class="pen p2" cx="${f(x2 + P / 2 + 2 + K / 2)}" cy="${f(y2)}" r="${f(K / 2)}" stroke-width="${f(Math.max(0.5, P * 0.025))}"/>`;
+  if (Q) s += qrSvg(answerHash(m), W - Q, T - Q, Q);
+
+  // walls: the outer box with a gap at both ways in, then every inner wall
+  const X = (col) => f(col * c), Y = (row) => f(top + row * c);
+  let d = `M${X(m.a)} ${Y(0)}H0V${Y(h)}H${X(b)}M${X(b + 1)} ${Y(h)}H${X(w)}V${Y(0)}H${X(m.a + 1)}`;
+  for (let r = 0; r < h; r++) for (let col = 0; col < w; col++) {
+    const i = r * w + col;
+    if (col < w - 1 && m.right[i]) d += `M${X(col + 1)} ${Y(r)}V${Y(r + 1)}`;
+    if (r < h - 1 && m.down[i]) d += `M${X(col)} ${Y(r + 1)}H${X(col + 1)}`;
+  }
+  s += `<path class="wall" stroke-width="${f(th)}" d="${d}"/>`;
+
+  // the prize in the middle of the room
+  const [r0, c0] = roomStart(w, h, R), gx = (c0 + R / 2) * c, gy = top + (r0 + R / 2) * c;
+  if (opts.answer) {
+    const cx = (i) => (i % w + 0.5) * c, cy = (i) => top + (Math.floor(i / w) + 0.5) * c;
+    const ways = solve(m), longest = Math.max(...ways.map((p) => p.length));
+    const speed = Math.min(STEP_S, RACE_MAX_S / longest);
+    ways.forEach((path, k) => {
+      const pts = [[cx(path[0]), k ? bottom + BAND_GAP : top - BAND_GAP], ...path.map((i) => [cx(i), cy(i)]), [gx, gy]];
+      const len = f(pts.slice(1).reduce((sum, [x, y], j) => sum + Math.hypot(x - pts[j][0], y - pts[j][1]), 0) + 1);
+      s += `<path class="route p${k + 1}" style="stroke-dasharray:${len};stroke-dashoffset:${len};--d:${f(path.length * speed)}s"
+        stroke-width="${f(c * 0.3)}" d="M${pts.map(([x, y]) => `${f(x)} ${f(y)}`).join('L')}"/>`;
+    });
+    m.hop = Math.min(...ways.map((p) => p.length)) * speed;
+  }
+  s += `<g class="goal">${pic(theme.to, gx, gy, Math.min(R * c * 0.8, 46))}</g>`;
+  return s + '</svg>';
+}
+
+/* ======== maker: sheets ======== */
+let pages = [];   // each page is one race
+const SHEET_W = 186, SHEET_H = 272.5;   // mm inside the page margins
+
+// the layout for the current settings, with a QR code big enough for the maze that fits (a bigger QR code leaves
+// room for fewer rows, so a couple of rounds settle it)
+function layout() {
+  let Q = QR_SIZE, lay;
+  for (let k = 0; k < 4; k++) {
+    lay = fitLayout(settings.size, SHEET_W, SHEET_H, Q);
+    const need = qrNeed(lay.cols, lay.rows);
+    if (need <= Q) break;
+    Q = need;
+  }
+  return lay;
+}
+const pageTheme = () => (settings.theme === 'mix' ? rint(0, THEMES.length - 1) : +settings.theme);
+const makePage = () => makeRace(layout(), pageTheme());
+
+const REROLL = '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="#1f2a44" stroke-width="2.6" stroke-linecap="round"/><path d="M20 3v6h-6" fill="none" stroke="#1f2a44" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function renderPages() {
+  const lay = layout();
+  $('pages').innerHTML = pages.map((m, i) => `<div class="page"><div class="sheet">${raceSvg(m, lay, { qr: true })}</div>
+    <button class="reroll" data-i="${i}" aria-label="New race for this page" title="New race for this page">${REROLL}</button></div>`).join('');
+  fitPages();
+}
+
+// shrink the A4 previews to the screen width (print resets the zoom)
+function fitPages() {
+  const sheetPx = 210 * 96 / 25.4;
+  document.documentElement.style.setProperty('--z', Math.min(1, $('pages').clientWidth / sheetPx).toFixed(3));
+}
+
+function readControls() {
+  const theme = $('theme').value;
+  settings = {
+    size: +$('size').value in SIZES ? +$('size').value : DEFAULTS.size,
+    theme: theme === 'mix' || THEMES[+theme] ? theme : DEFAULTS.theme,
+    sheets: clamp($('sheets').value, 1, SHEETS_MAX, DEFAULTS.sheets),
+  };
+  writeControls();
+  saveSettings();
+}
+function writeControls() {
+  if (!(settings.size in SIZES)) settings.size = DEFAULTS.size;
+  if (settings.theme !== 'mix' && !THEMES[+settings.theme]) settings.theme = DEFAULTS.theme;
+  for (const k of ['size', 'theme', 'sheets']) $(k).value = settings[k];
+  $('sheets').min = 1; $('sheets').max = SHEETS_MAX;
+}
+
+function newAll() { pages = range(settings.sheets).map(makePage); renderPages(); }
+
+function startMaker() {
+  $('size').innerHTML = Object.entries(SIZES).map(([n, name]) => `<option value="${n}">${name} (${n} across)</option>`).join('');
+  $('theme').innerHTML = THEMES.map((t, i) => `<option value="${i}">${t.name}</option>`).join('') + '<option value="mix">A mix</option>';
+  writeControls();
+  $('size').addEventListener('change', () => { readControls(); newAll(); });
+  $('theme').addEventListener('change', () => {   // same mazes, new pictures
+    readControls();
+    for (const m of pages) m.theme = pageTheme();
+    renderPages();
+  });
+  $('sheets').addEventListener('change', () => {   // keep the pages already made, add or drop at the end
+    readControls();
+    pages = pages.slice(0, settings.sheets);
+    while (pages.length < settings.sheets) pages.push(makePage());
+    renderPages();
+  });
+  $('new').addEventListener('click', () => { readControls(); newAll(); });
+  $('print').addEventListener('click', () => { readControls(); window.print(); });
+  $('pages').addEventListener('click', (e) => {
+    const b = e.target.closest('.reroll');
+    if (!b) return;
+    pages[+b.dataset.i] = makePage();
+    renderPages();
+  });
+  addEventListener('resize', fitPages);
+  newAll();
+}
+
+/* ======== answer page ======== */
+// the maze with both ways drawn at the same speed from each start; the prize hops when the first one gets there.
+// Tap it to race again.
+function showAnswer(m) {
+  document.body.classList.add('answering');
+  const c = 10, P = Math.max(PIC_MIN, c * PIC_CELLS, m.w * c * 0.12);   // on a big maze the pictures grow with it
+  const lay = { c, P, Q: 0, cols: m.w, rows: m.h };
+  const draw = () => {
+    $('solved').innerHTML = `${raceSvg(m, lay, { answer: true })}<a id="make" href="./">Make new races</a>`;
+    $('solved').style.setProperty('--hop', `${f(m.hop)}s`);
+  };
+  draw();
+  $('solved').addEventListener('click', (e) => { if (e.target.closest('svg')) draw(); });
+}
+
+/* ======== start ======== */
+function route() {
+  const m = parseHash();
+  if (m) showAnswer(m);
+  else { document.body.classList.remove('answering'); if (!pages.length) startMaker(); }
+}
+addEventListener('hashchange', () => location.reload());
+route();
+</script>
+<script>
+// Offline support: sw.js caches this page. Once the page has loaded, send it every file the page used (fonts,
+// the QR library) so those work offline too. Fails quietly where unsupported, e.g. on file://.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then((reg) => {
+    const send = () => reg.active && reg.active.postMessage({ cache: [location.href, ...performance.getEntriesByType('resource').map((r) => r.name)] });
+    send(); setTimeout(send, 5000); setTimeout(send, 20000);
+  }).catch(() => {});
+}
+</script>
+</body>
+</html>
